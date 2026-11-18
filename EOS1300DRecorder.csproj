@@ -1,0 +1,24 @@
+<Project ToolsVersion="15.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition="'$(Configuration)'==''">Release</Configuration>
+    <PlatformTarget>x86</PlatformTarget>
+    <OutputType>WinExe</OutputType>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <RootNamespace>RecorderStudio</RootNamespace>
+    <AssemblyName>EOS1300DRecorder</AssemblyName>
+    <OutputPath>dist\</OutputPath>
+    <AppConfig>src\app.config</AppConfig>
+    <ApplicationManifest>src\app.manifest</ApplicationManifest>
+    <Optimize>true</Optimize>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" /><Reference Include="System.Core" /><Reference Include="System.Xml" />
+    <Reference Include="System.Runtime.Serialization" /><Reference Include="System.Windows.Forms" />
+    <Reference Include="Microsoft.CSharp" /><Reference Include="System.Xaml" />
+    <Reference Include="WindowsBase" /><Reference Include="PresentationCore" /><Reference Include="PresentationFramework" />
+    <Compile Include="src\**\*.cs" />
+    <EmbeddedResource Include="src\Views\MainWindow.xaml"><LogicalName>MainWindow.xaml</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="src\Localization\fa.json"><LogicalName>fa.json</LogicalName></EmbeddedResource>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>
