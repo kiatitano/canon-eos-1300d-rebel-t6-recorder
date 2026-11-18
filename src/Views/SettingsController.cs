@@ -53,7 +53,7 @@ namespace RecorderStudio {
    tabs.Items.Add(new TabItem {Header=UiText.T("App preferences"),Content=new ScrollViewer {Content=BuildAppPreferences(),VerticalScrollBarVisibility=ScrollBarVisibility.Auto}});
    var about=new StackPanel();
    about.Children.Add(new TextBlock {Text="EOS 1300D Recorder Studio",FontSize=24,Margin=new Thickness(0,0,0,12)});
-   about.Children.Add(SettingText("Version 1.1.0 · Windows · English / Persian"));
+   about.Children.Add(SettingText("Version 1.1.1 · Windows · English / Persian"));
    about.Children.Add(SettingText("An unofficial USB recording companion for the Canon EOS 1300D / Rebel T6 / Kiss X80. Not affiliated with Canon."));
    about.Children.Add(SettingText("Records original movies to the camera card. Clip restart leaves a short gap. USB preview is lower resolution than the original movie. This app does not turn this camera into a direct-to-PC Full HD recorder."));
    about.Children.Add(SettingText("Transfers read each completed movie twice and compare SHA-256 before removing its card original. Choose No to keep originals. Keep the app open if you want to transfer its pending takes later."));
@@ -96,6 +96,9 @@ namespace RecorderStudio {
    threshold.Items.Add(UiText.T("Warn at the low level (30%)")); threshold.Items.Add(UiText.T("Early warning at 50%")); threshold.SelectedIndex=batteryThreshold==50?1:0;
    threshold.SelectionChanged+=delegate {batteryThreshold=threshold.SelectedIndex==1?50:30;SaveAlarmPreferences();}; panel.Children.Add(threshold);
    panel.Children.Add(SettingText("This camera reports coarse battery levels, not an exact percentage. Critical alerts repeat at the last level. Keepalive cannot prevent an empty battery or thermal shutdown."));
+   panel.Children.Add(SettingText("Temperature protection",18));
+   panel.Children.Add(SettingText("When a supported camera reports a temperature warning, recording and preview stop and automatic restart/reconnect are locked for this app session. Turn the camera OFF manually and let it cool before restarting the app."));
+   panel.Children.Add(SettingText("This EOS 1300D/SDK combination may not expose temperature telemetry. Unavailable does not mean the camera is cool. No Celsius reading or USB power-off is promised."));
    panel.Children.Add(SettingText("Recording workflow",18));
    var reconnect=new CheckBox {Content="Reconnect automatically",IsChecked=prefs.AutoReconnect,Margin=new Thickness(0,0,0,10)};
    reconnect.Checked+=delegate {prefs.AutoReconnect=true;TrySavePreferences();}; reconnect.Unchecked+=delegate {prefs.AutoReconnect=false;TrySavePreferences();};panel.Children.Add(reconnect);

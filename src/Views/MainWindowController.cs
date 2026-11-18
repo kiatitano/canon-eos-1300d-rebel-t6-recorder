@@ -29,7 +29,7 @@ namespace RecorderStudio {
   double alarmVolume=0.55;
   string audioError="";
   readonly Stopwatch alarmClock=Stopwatch.StartNew();
-  long lastAlarmAt=-999999;
+  long lastAlarmAt=-999999,lastThermalAlarmAt=-999999;
   readonly System.Collections.Generic.List<string> takes=new System.Collections.Generic.List<string>();
   [DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr hwnd,int attribute,ref int value,int size);
   T Get<T>(string name) where T:class { return window.FindName(name) as T; }
@@ -124,21 +124,34 @@ namespace RecorderStudio {
   }
 
   static string Time(double seconds) { return TimeSpan.FromSeconds(Math.Max(0,seconds)).ToString(@"hh\:mm\:ss"); }
+  void UpdateThermalAlarm(CameraStatus status) {
+   Text("TemperatureText",status.Temperature);
+   Get<TextBlock>("TemperatureText").Foreground=status.CoolingLock?Brushes.Salmon:Brushes.LightGray;
+   var hint=Get<TextBlock>("TemperatureHint");
+   UiText.SetText(hint,status.CoolingLock?"Recording and reconnect are locked. Full power-off requires the camera's physical OFF switch.":status.TemperatureAvailable?"Camera-reported warning status, not a temperature in degrees.":"USB temperature monitoring is not available. Watch the camera's temperature warning icon.");
+   var alarm=Get<TextBlock>("TemperatureAlarm");alarm.Visibility=status.CoolingLock?Visibility.Visible:Visibility.Collapsed;
+   UiText.SetText(alarm,"Temperature warning! Turn the camera OFF and let it cool.");
+   if(status.CoolingLock && alarmClock.ElapsedMilliseconds-lastThermalAlarmAt>=30000) {
+    // Thermal alerts remain audible even if the battery reminder was muted.
+    if(BatteryBeeper.Play(true,alarmVolume)) lastThermalAlarmAt=alarmClock.ElapsedMilliseconds;
+   }
+  }
   void Render(CameraStatus status) {
    latest=status;
+   UpdateThermalAlarm(status);
    UpdateBatteryAlarm(status);
-   foreach(var button in preferenceButtons) button.IsEnabled=!status.Recording && !status.Transferring;
-   foreach(var button in settingButtons) button.IsEnabled=status.Connected && !status.Recording && !status.Transferring && (bool)button.Tag;
+   foreach(var button in preferenceButtons) button.IsEnabled=!status.CoolingLock && !status.Recording && !status.Transferring;
+   foreach(var button in settingButtons) button.IsEnabled=!status.CoolingLock && status.Connected && !status.Recording && !status.Transferring && (bool)button.Tag;
    if(!status.Transferring && !string.IsNullOrEmpty(status.Error)) transferRequested=false;
    Get<Button>("StartButton").IsEnabled=status.CanStart && !transferRequested;
    Get<Button>("StopButton").IsEnabled=status.Recording;
-   Get<Button>("FaceFocusButton").IsEnabled=status.Connected && !status.Recording && !status.Transferring && !status.Focusing;
-   Get<Button>("ReconnectButton").IsEnabled=!status.Recording && !status.Transferring && !transferRequested;
+   Get<Button>("FaceFocusButton").IsEnabled=!status.CoolingLock && status.Connected && !status.Recording && !status.Transferring && !status.Focusing;
+   Get<Button>("ReconnectButton").IsEnabled=!status.CoolingLock && !status.Recording && !status.Transferring && !transferRequested;
    Get<Button>("TransferButton").IsEnabled=status.Transferring || (status.Connected && !status.Recording && status.PendingTransfers>0);
    UiText.SetContent(Get<Button>("TransferButton"),status.Transferring?"Cancel transfer":"Transfer files ("+status.PendingTransfers+")");
    Get<System.Windows.Controls.ProgressBar>("TransferProgressBar").Visibility=status.Transferring?Visibility.Visible:Visibility.Collapsed;
    Get<System.Windows.Controls.ProgressBar>("TransferProgressBar").Value=status.TransferProgress*100;
-   Get<CheckBox>("PreviewToggle").IsEnabled=!status.Transferring;
+   Get<CheckBox>("PreviewToggle").IsEnabled=!status.CoolingLock && !status.Transferring;
    Text("StatusText",status.Message); Text("ErrorText",string.IsNullOrEmpty(status.Error)?audioError:status.Error);
    Text("ConnectionLabel",status.Connected?"USB connected · Battery "+status.Battery:"Camera disconnected");
    Get<System.Windows.Shapes.Ellipse>("ConnectionDot").Fill=new SolidColorBrush((Color)ColorConverter.ConvertFromString(status.Connected?"#80C7A3":"#B6BAC2"));
@@ -147,7 +160,12 @@ namespace RecorderStudio {
    Text("ClipTimer",Time(status.ClipSeconds)); Text("TotalTimer",Time(status.TotalSeconds));
    Text("BatteryText",status.Battery); Text("CardText",status.Card);
    Text("RestartText",status.Restarts+" automatic restarts");
-   if(status.Transferring) {
+   if(status.CoolingLock) {
+    Get<CheckBox>("PreviewToggle").IsChecked=false;
+    Get<Image>("PreviewImage").Source=null; Get<StackPanel>("EmptyPreview").Visibility=Visibility.Visible;
+    Text("EmptyTitle","Temperature warning — camera cooling required");
+    Text("EmptySubtitle","Turn the camera OFF. Let it cool before restarting the app."); Text("PreviewLabel","COOLING LOCK");
+   } else if(status.Transferring) {
     Get<Image>("PreviewImage").Source=null; Get<StackPanel>("EmptyPreview").Visibility=Visibility.Visible;
     Text("EmptyTitle","Transferring original files"); Text("EmptySubtitle",Math.Round(status.TransferProgress*100)+"% — "+status.Message); Text("PreviewLabel","VERIFYING ORIGINAL FILES");
    } else if(!status.Connected && Get<CheckBox>("PreviewToggle").IsChecked==true) {

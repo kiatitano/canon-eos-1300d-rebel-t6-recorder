@@ -230,5 +230,22 @@
   "Move {0} recorded video file(s)?\n\nDestination:\n{1}\n\nThe app copies and verifies the original files before deleting them from the card.\nChoose No to keep them on the card.": "{0} فایل ضبط‌شده منتقل شود؟\n\nمقصد:\n{1}\n\nاپ پیش از حذف اصل فایل‌ها از کارت، کپی و صحت آن‌ها را بررسی می‌کند.\nبا انتخاب «نه» فایل‌ها روی کارت باقی می‌مانند.",
   "Copying file {0} of {1}: {2}": "کپی فایل {0} از {1}: {2}",
   "Yes, transfer": "بله، انتقال بده",
-  "No, keep on card": "نه، روی کارت بماند"
+  "No, keep on card": "نه، روی کارت بماند",
+  "Thermal status": "وضعیت دما",
+  "Unavailable": "در دسترس نیست",
+  "No warning reported": "هشداری گزارش نشده",
+  "Warning reported": "هشدار گزارش شده",
+  "USB temperature monitoring is not available. Watch the camera's temperature warning icon.": "پایش دما از USB در دسترس نیست. علامت هشدار دما را روی دوربین بررسی کن.",
+  "Recording and reconnect are locked. Full power-off requires the camera's physical OFF switch.": "ضبط و اتصال مجدد قفل شده‌اند. برای خاموشی کامل، کلید دوربین را روی OFF بگذار.",
+  "Camera-reported warning status, not a temperature in degrees.": "وضعیت هشدار گزارش‌شده توسط دوربین است؛ دما برحسب درجه نیست.",
+  "Temperature warning! Turn the camera OFF and let it cool.": "هشدار دما! دوربین را خاموش کن و اجازه بده خنک شود.",
+  "Temperature warning — camera cooling required": "هشدار دما — دوربین باید خنک شود",
+  "Turn the camera OFF. Let it cool before restarting the app.": "دوربین را خاموش کن. پس از خنک شدن، اپ را دوباره باز کن.",
+  "COOLING LOCK": "قفل خنک‌سازی",
+  "Temperature protection": "محافظت در برابر دما",
+  "Temperature warning: recording is locked. Turn the camera OFF and let it cool. Restart the app only after cooling.": "هشدار دما: ضبط قفل شده است. دوربین را خاموش کن و اجازه بده خنک شود. فقط پس از خنک شدن اپ را دوباره باز کن.",
+  "Temperature warning received. Recording stopped; card originals were kept.": "هشدار دما دریافت شد. ضبط متوقف شد؛ فایل‌های اصلی روی کارت باقی ماندند.",
+  "Temperature warning received. Recording stop could not be confirmed. Use the camera controls now.": "هشدار دما دریافت شد. توقف ضبط تأیید نشد. همین حالا با کلیدهای خود دوربین ضبط را متوقف کن.",
+  "When a supported camera reports a temperature warning, recording and preview stop and automatic restart/reconnect are locked for this app session. Turn the camera OFF manually and let it cool before restarting the app.": "اگر دوربین هشدار دما را گزارش کند، ضبط و پیش‌نمایش متوقف و شروع و اتصال مجدد تا پایان این نشست قفل می‌شوند. دوربین را دستی خاموش کن و پس از خنک شدن اپ را دوباره باز کن.",
+  "This EOS 1300D/SDK combination may not expose temperature telemetry. Unavailable does not mean the camera is cool. No Celsius reading or USB power-off is promised.": "ممکن است این ترکیب دوربین و SDK وضعیت دما را ارائه نکند. «در دسترس نیست» به معنی خنک بودن نیست. نمایش درجه یا خاموشی کامل از USB تضمین نمی‌شود."
 }

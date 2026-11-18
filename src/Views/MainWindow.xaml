@@ -61,6 +61,7 @@
      <Ellipse x:Name="ConnectionDot" Width="7" Height="7" Fill="#B6BAC2" Margin="0,0,7,0"/>
      <TextBlock x:Name="ConnectionLabel" Text="Waiting for a camera" FontSize="12" Foreground="#B6BAC2"/>
     </StackPanel>
+    <TextBlock x:Name="TemperatureAlarm" Visibility="Collapsed" Foreground="#FFB78C" FontSize="13" TextWrapping="Wrap" MaxWidth="580" Margin="0,7,0,0"/>
     <TextBlock x:Name="BatteryAlarm" Visibility="Collapsed" Foreground="#FFB78C" FontSize="13" TextWrapping="Wrap" MaxWidth="580" Margin="0,7,0,0"/>
    </StackPanel>
   </Grid>
@@ -120,6 +121,10 @@
       <Grid Margin="0,10,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
        <TextBlock Text="Card free space" Foreground="#B6BAC2"/><TextBlock x:Name="CardText" Text="—" Grid.Column="1" FlowDirection="LeftToRight"/>
       </Grid>
+      <Grid Margin="0,10,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+       <TextBlock Text="Thermal status" Foreground="#B6BAC2"/><TextBlock x:Name="TemperatureText" Text="Unavailable" Grid.Column="1" FontSize="12"/>
+      </Grid>
+      <TextBlock x:Name="TemperatureHint" Text="USB temperature monitoring is not available. Watch the camera's temperature warning icon." FontSize="12" Foreground="#FFB78C" TextWrapping="Wrap" Margin="0,8,0,0"/>
       <Border Background="#252A2F" CornerRadius="8" Padding="12" Margin="0,16,0,0">
        <StackPanel><TextBlock Text="Automatic clip restart" FontWeight="SemiBold" Foreground="#80C7A3"/><TextBlock Text="Starts the next clip at the size or time limit. A short gap remains between clips." FontSize="12" Foreground="#B6BAC2" TextWrapping="Wrap" Margin="0,6,0,0"/></StackPanel>
       </Border>

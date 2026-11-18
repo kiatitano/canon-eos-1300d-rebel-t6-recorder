@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 & (Join-Path $PSScriptRoot 'Build.ps1')
 $framework = Join-Path ([Environment]::GetFolderPath('Windows')) 'Microsoft.NET\Framework\v4.0.30319'
@@ -8,6 +8,8 @@ $app = Join-Path $root 'dist\EOS1300DRecorder.exe'
 $tests = @(
     @{ Name='BeeperTests'; Sources=@('tests\BeeperTests.cs','src\Services\BatteryBeeper.cs') },
     @{ Name='TransferVerificationTests'; Sources=@('tests\TransferVerificationTests.cs','src\Services\MovieTransfer.cs','src\Services\AppPreferences.cs','src\Interop\CameraSdk.cs','src\Interop\TransferSdk.cs','src\Models\RecordedTake.cs') },
+    @{ Name='ThermalProtectionTests'; Sources=@('tests\ThermalProtectionTests.cs','src\Services\ThermalProtection.cs') },
+    @{ Name='ThermalUiTests'; Sources=@('tests\ThermalUiTests.cs'); App=$true },
     @{ Name='UiTests'; Sources=@('tests\UiTests.cs'); App=$true }
 )
 foreach ($test in $tests) {

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Runtime.InteropServices;
 public static class CameraSdk {
  [StructLayout(LayoutKind.Sequential)] public struct PropertyDesc {
@@ -29,10 +29,11 @@ public static class CameraSdk {
  public static DateTime LastMovieSeen;
  public static uint LastMovieCameraTime;
  public static bool ShutdownWarning;
+ public static volatile bool KeepAliveAllowed=true;
  public static StateHandler StateCallback = OnState;
  public static ObjectHandler ObjectCallback = OnObject;
  static uint OnState(uint evt,uint param,IntPtr context) {
-  if(evt==0x303) { ShutdownWarning=true; if(context!=IntPtr.Zero) EdsSendCommand(context,1,0); }
+  if(evt==0x303) { ShutdownWarning=true; if(KeepAliveAllowed && context!=IntPtr.Zero) EdsSendCommand(context,1,0); }
   if(evt==0x301 || evt==0x305 || evt==0x306) { Fatal=true; LastError="Camera event 0x"+evt.ToString("X")+", parameter 0x"+param.ToString("X"); }
   return 0;
  }

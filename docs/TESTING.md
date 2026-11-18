@@ -1,4 +1,4 @@
-# Testing and practical limits
+﻿# Testing and practical limits
 
 ## Offline tests
 
@@ -38,3 +38,7 @@ These observations were made during development and are not proof of all future 
 6. Test transfer only with disposable recordings made for that test.
 
 The normal release executable contains no hidden command-line path that automatically records test footage or approves deletion.
+
+## Temperature capability update (1.1.1)
+
+Both temperature-property paths were read on the physical EOS 1300D while idle and with Live View enabled; neither was supported by the installed SDK/body combination. The rebuilt engine connected successfully, reported `TemperatureAvailable=false`, and remained usable. Offline policy tests verify latched cooling behavior and unavailable telemetry; UI tests verify disabled Start/reconnect/focus/preview during a simulated warning. No camera was deliberately overheated. See [temperature details](TEMPERATURE.md).

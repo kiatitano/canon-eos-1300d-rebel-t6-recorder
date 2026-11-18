@@ -1,4 +1,4 @@
-# Canon EOS 1300D / Rebel T6 Recorder Studio for Windows
+﻿# Canon EOS 1300D / Rebel T6 Recorder Studio for Windows
 
 **USB remote video recording, automatic clip restart, live preview and verified original-file transfers for the Canon EOS 1300D / Rebel T6 camera family.**
 
@@ -29,6 +29,7 @@ This app watches recordings that it starts. When it verifies a completed clip at
 - **Camera controls:** ISO, shutter speed, aperture, white balance, Picture Style and available Live View AF modes. Camera-provided choices are refreshed and new values are read back.
 - **Picture Style details:** contrast, sharpness, saturation and color tone; monochrome filter/toning controls are exposed in the monochrome style. Availability depends on camera state.
 - **Coarse battery monitoring:** a visible approximate level, low/critical banners and an original repeated-beep alert. Normal alerts use nine beeps; critical alerts use fifteen. Includes volume adjustment, mute, early warning and a sound test.
+- **Temperature warning capability:** probes the camera/SDK for warning status. When a warning is available and reported, it attempts to stop/save recording, disables preview/restart/reconnect and latches a cooling lock. The tested EOS 1300D/SDK returned unsupported telemetry; the app clearly displays **Unavailable**, not a healthy temperature. Full power-off requires the physical OFF switch. See [temperature limits](docs/TEMPERATURE.md).
 - **Keepalive and recovery:** sends the SDK keepalive command and retries connection after a camera disconnect, when enabled. A battery replacement does not silently begin a new recording.
 - **Verified file movement:** asks before transfer, copies each completed movie twice, compares size and SHA-256, verifies the finalized local file, and only then removes that source from the card.
 - **Transfer cancellation and progress:** completed transfers stay on the computer; unverified originals stay on the camera card.

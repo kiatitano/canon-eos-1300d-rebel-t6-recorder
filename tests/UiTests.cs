@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Reflection;
 using System.Windows;
@@ -30,6 +30,7 @@ public static class UiTests
             UiText.Apply(window);
             Assert(((TextBlock)window.FindName("EmptyTitle")).Text == "کادر خودت را تنظیم کن", "Persian main UI translated");
             Assert(((FrameworkElement)window.FindName("ControlPanel")).FlowDirection == FlowDirection.RightToLeft, "Persian direction");
+            Assert(((TextBlock)window.FindName("TemperatureText")).Text == "در دسترس نیست", "Persian unavailable temperature label");
             Assert(UiText.T("Current: Neutral").Contains("خنثی"), "Dynamic camera label translated");
             string fileLabel = UiText.T("Copying file 2 of 3: MVI_0001.MOV");
             Assert(fileLabel.Contains("MVI_0001.MOV") && !fileLabel.Contains(" of "), "Transfer translation preserves filenames");
