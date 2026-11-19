@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Xml;
 using System.Globalization;
@@ -13,6 +13,10 @@ namespace RecorderStudio
         public string SdkDirectory = "";
         public bool SoundAlerts = true;
         public bool AutoReconnect = true;
+        public bool SaveBatteryWhileIdle = true;
+        public bool PausePreviewWhenMinimized = true;
+        public bool StopSounds = true;
+        public double StopSoundVolume = 0.35;
         public bool PreviewOnStart;
         public bool MirrorPreview;
         public int BatteryThreshold = 30;
@@ -37,6 +41,9 @@ namespace RecorderStudio
                     if (!string.IsNullOrWhiteSpace(output) && Path.IsPathRooted(output)) prefs.OutputDirectory = Path.GetFullPath(output);
                     prefs.SdkDirectory = root.GetAttribute("sdkDirectory");
                     prefs.SoundAlerts = root.GetAttribute("soundAlerts") != "false";
+                    prefs.StopSounds = root.GetAttribute("stopSounds") != "false";
+                    prefs.PausePreviewWhenMinimized = root.GetAttribute("pausePreviewWhenMinimized") != "false";
+                    prefs.SaveBatteryWhileIdle = root.GetAttribute("saveBatteryWhileIdle") != "false";
                     prefs.AutoReconnect = root.GetAttribute("autoReconnect") != "false";
                     prefs.PreviewOnStart = root.GetAttribute("previewOnStart") == "true";
                     prefs.MirrorPreview = root.GetAttribute("mirrorPreview") == "true";
@@ -44,6 +51,7 @@ namespace RecorderStudio
                     if (int.TryParse(root.GetAttribute("batteryThreshold"), out number) && (number == 30 || number == 50)) prefs.BatteryThreshold = number;
                     if (int.TryParse(root.GetAttribute("focusTimeout"), out number)) prefs.FocusTimeoutSeconds = Math.Max(4, Math.Min(15, number));
                     double volume;
+                    if (double.TryParse(root.GetAttribute("stopSoundVolume"), NumberStyles.Float, CultureInfo.InvariantCulture, out volume)) prefs.StopSoundVolume = Math.Max(0, Math.Min(1, volume));
                     if (double.TryParse(root.GetAttribute("volume"), NumberStyles.Float, CultureInfo.InvariantCulture, out volume)) prefs.AlertVolume = Math.Max(0.2, Math.Min(1, volume));
                 }
                 else
@@ -72,6 +80,10 @@ namespace RecorderStudio
             root.SetAttribute("outputDirectory", OutputDirectory);
             root.SetAttribute("sdkDirectory", SdkDirectory);
             root.SetAttribute("soundAlerts", SoundAlerts ? "true" : "false");
+            root.SetAttribute("stopSounds", StopSounds ? "true" : "false");
+            root.SetAttribute("stopSoundVolume", StopSoundVolume.ToString(CultureInfo.InvariantCulture));
+            root.SetAttribute("pausePreviewWhenMinimized", PausePreviewWhenMinimized ? "true" : "false");
+            root.SetAttribute("saveBatteryWhileIdle", SaveBatteryWhileIdle ? "true" : "false");
             root.SetAttribute("autoReconnect", AutoReconnect ? "true" : "false");
             root.SetAttribute("previewOnStart", PreviewOnStart ? "true" : "false");
             root.SetAttribute("mirrorPreview", MirrorPreview ? "true" : "false");

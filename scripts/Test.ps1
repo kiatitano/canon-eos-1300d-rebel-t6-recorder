@@ -6,10 +6,12 @@ $compiler = Join-Path $framework 'csc.exe'
 $references = @('System.dll','System.Core.dll','System.Xml.dll','System.Runtime.Serialization.dll','System.Xaml.dll','WPF\WindowsBase.dll','WPF\PresentationCore.dll','WPF\PresentationFramework.dll') | ForEach-Object { '/reference:'+(Join-Path $framework $_) }
 $app = Join-Path $root 'dist\EOS1300DRecorder.exe'
 $tests = @(
-    @{ Name='BeeperTests'; Sources=@('tests\BeeperTests.cs','src\Services\BatteryBeeper.cs') },
+    @{ Name='BeeperTests'; Sources=@('tests\BeeperTests.cs','src\Services\BatteryBeeper.cs','src\Services\AudioOutput.cs') },
     @{ Name='TransferVerificationTests'; Sources=@('tests\TransferVerificationTests.cs','src\Services\MovieTransfer.cs','src\Services\AppPreferences.cs','src\Interop\CameraSdk.cs','src\Interop\TransferSdk.cs','src\Models\RecordedTake.cs') },
     @{ Name='ThermalProtectionTests'; Sources=@('tests\ThermalProtectionTests.cs','src\Services\ThermalProtection.cs') },
     @{ Name='ThermalUiTests'; Sources=@('tests\ThermalUiTests.cs'); App=$true },
+    @{ Name='CameraPowerPolicyTests'; Sources=@('tests\CameraPowerPolicyTests.cs','src\Services\CameraPowerPolicy.cs') },
+    @{ Name='RecordingChimeTests'; Sources=@('tests\RecordingChimeTests.cs','src\Services\RecordingChime.cs','src\Services\RecordingStopTracker.cs','src\Services\AudioOutput.cs') },
     @{ Name='UiTests'; Sources=@('tests\UiTests.cs'); App=$true }
 )
 foreach ($test in $tests) {

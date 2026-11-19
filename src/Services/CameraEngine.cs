@@ -11,6 +11,10 @@ namespace RecorderStudio {
  internal sealed class UserActionException : Exception { public UserActionException(string message):base(message) {} }
  public sealed class CameraEngine : IDisposable {
   public event Action<CameraStatus> Status;
+  public event Action<RecordingStopReason> RecordingStopped;
+  readonly RecordingStopTracker stopTracker=new RecordingStopTracker();
+  bool windowMinimized;
+  bool EffectivePreview {get {return preview && !(windowMinimized && AppPreferences.Current.PausePreviewWhenMinimized);}}
   public event Action<byte[]> Frame;
   public event Action<string> Take;
   public event Action<int> TransferOffer;
@@ -20,7 +24,8 @@ namespace RecorderStudio {
   readonly ConcurrentQueue<Action> commands=new ConcurrentQueue<Action>();
   readonly Thread worker;
   readonly ThermalProtection thermal=new ThermalProtection();
-  long nextTemperature;
+  long nextTemperature,lastUserActivity;
+  bool powerRest,temperatureUnsupported;
   string lastTemperatureLog="";
   readonly string logPath;
   readonly Stopwatch clip=new Stopwatch(), total=new Stopwatch();
@@ -53,11 +58,11 @@ namespace RecorderStudio {
   public string LogPath { get { return logPath; } }
   void Log(string text) { try { File.AppendAllText(logPath,DateTime.Now.ToString("s")+" "+text+Environment.NewLine,Encoding.UTF8); } catch {} }
   public void Connect() { commands.Enqueue(delegate { ConnectCore(); }); }
-  public void RefreshSettings() { commands.Enqueue(delegate { if(opened && SettingsChanged!=null) SettingsChanged(CameraSettings.Read(camera)); }); }
+  public void RefreshSettings() { commands.Enqueue(delegate { WakeIfResting(); if(opened && SettingsChanged!=null) SettingsChanged(CameraSettings.Read(camera)); }); }
 
 
   public void ApplySetting(uint id,uint value) { commands.Enqueue(delegate {
-   EnsureNotCooling();
+   EnsureNotCooling(); WakeIfResting();
    if(!opened || ownRecording || transferring) throw new UserActionException("Change camera settings before recording.");
    bool allowed=false;
    foreach(var setting in CameraSettings.Read(camera)) if(setting.Id==id) foreach(var choice in setting.Choices) if(choice.Value==value) allowed=true;
@@ -70,13 +75,16 @@ namespace RecorderStudio {
    if(SettingsChanged!=null) SettingsChanged(CameraSettings.Read(camera)); Publish();
   }); }
   public void Focus(int direction) { commands.Enqueue(delegate {
-   EnsureNotCooling();
+   EnsureNotCooling(); WakeIfResting();
    if(!opened || ownRecording || transferring) throw new UserActionException("Stop recording before adjusting focus.");
-   uint result=CameraSdk.EdsSendCommand(camera,0x103,direction<0?1:0x8001);
-   if(result!=0) throw new UserActionException("Lens focus control is unavailable. Set the lens to AF and enable live view.");
+   focusing=true;
+   try {
+    ApplyIdleOutput(); uint result=CameraSdk.EdsSendCommand(camera,0x103,direction<0?1:0x8001);
+    if(result!=0) throw new UserActionException("Lens focus control is unavailable. Set the lens to AF and enable live view.");
+   } finally { focusing=false; ApplyIdleOutput(); }
   }); }
   public void AutoFocusFace() { commands.Enqueue(delegate {
-   EnsureNotCooling();
+   EnsureNotCooling(); WakeIfResting();
    if(!opened || ownRecording || transferring) throw new UserActionException("Use autofocus before recording.");
    if(CameraSdk.ReadNumber(camera,0x404)==3) throw new UserActionException("The lens switch is on MF. Switch the lens to AF first.");
    bool supported=false; foreach(var setting in CameraSettings.Read(camera)) if(setting.Id==0x50e) foreach(var choice in setting.Choices) if(choice.Value==2) supported=true;
@@ -100,9 +108,24 @@ namespace RecorderStudio {
    finally { if(started) CameraSdk.EdsSendCommand(camera,0x102,0); focusing=false; Publish(); }
    if(SettingsChanged!=null) SettingsChanged(CameraSettings.Read(camera));
   }); }
-  public void SetPreview(bool on) { commands.Enqueue(delegate { if(on) EnsureNotCooling(); preview=on; previewFailures=0; frames=0; lastFrameAt=clock.ElapsedMilliseconds; if(!on && Frame!=null) Frame(null); Publish(); }); }
+  public void SetPreview(bool on) { commands.Enqueue(delegate {
+   if(on) { EnsureNotCooling(); WakeIfResting(); } else TouchActivity();
+   preview=on; previewFailures=0; frames=0; lastFrameAt=clock.ElapsedMilliseconds;
+   ApplyIdleOutput(); if(!on && Frame!=null) Frame(null); Publish();
+  }); }
+  public void SetWindowMinimized(bool minimized) {commands.Enqueue(delegate {
+   if(windowMinimized==minimized) return;
+   windowMinimized=minimized; TouchActivity();
+   if(!minimized && preview) {EnsureNotCooling();WakeIfResting();}
+   previewFailures=0;lastFrameAt=clock.ElapsedMilliseconds;
+   ApplyIdleOutput();if(!EffectivePreview && Frame!=null)Frame(null);Publish();
+  });}
+  public void UpdatePowerSaving() { commands.Enqueue(delegate {
+   if(!AppPreferences.Current.SaveBatteryWhileIdle || (preview && EffectivePreview)) WakeIfResting(); else TouchActivity();
+   ApplyIdleOutput(); Publish();
+  }); }
   public void Start() { commands.Enqueue(delegate {
-   EnsureNotCooling();
+   EnsureNotCooling(); WakeIfResting();
    if(!opened) throw new UserActionException("Camera disconnected. Choose Reconnect.");
    if(ownRecording) return;
    if(CameraSdk.ReadNumber(camera,0x400)!=20) throw new UserActionException("Set the camera's physical mode dial to Movie.");
@@ -113,13 +136,24 @@ namespace RecorderStudio {
    error=""; restarts=0; total.Restart(); BeginClip(); message="Recording to the camera card"; Publish();
   }); }
   public void Stop() { commands.Enqueue(delegate { bool wasRecording=ownRecording; StopCore(); Publish(); if(wasRecording) OfferTransfer(); }); }
+  void NotifyRecordingStop(RecordingStopReason reason) {
+   if(!stopTracker.Stop())return;
+   Log("RECORDING STOP NOTIFICATION "+reason);
+   try {var handler=RecordingStopped;if(handler!=null)handler(reason);}catch(Exception ex){Log("Stop notification: "+ex.Message);}
+  }
   void OfferTransfer() { if(TransferOffer!=null) TransferOffer(pending.Count); }
   public void CancelTransfer() { transferCancelled=true; }
   public void MovePending() { transferCancelled=false; commands.Enqueue(delegate {
-   EnsureNotCooling();
+   EnsureNotCooling(); WakeIfResting();
    if(!opened || ownRecording || transferring) throw new UserActionException("Stop recording and keep the camera connected before transferring.");
    if(pending.Count==0) return;
    if(CameraSdk.ReadNumber(camera,0x510)==4) throw new UserActionException("The camera is recording. Stop it first.");
+   if(AppPreferences.Current.SaveBatteryWhileIdle) {
+    try {
+     CameraSdk.WriteNumber(camera,0x500,0);CameraSdk.Pump(700);
+     Log("TRANSFER LIVE VIEW PAUSED output="+CameraSdk.ReadNumber(camera,0x500));
+    } catch(Exception ex){Log("Transfer Live View pause unavailable: "+ex.Message);}
+   }
    transferring=true; transferProgress=0; error="";
    CameraSdk.SetThreadExecutionState(0x80000001); message="Preparing file transfer…"; Publish();
    bool success=false; string result;
@@ -131,26 +165,27 @@ namespace RecorderStudio {
    } catch(Exception ex) {
     result="Transfer incomplete. Unverified originals remain on the card.\n"+ex.Message;
     error=result; message=ex is OperationCanceledException?"Transfer cancelled":"Transfer needs attention"; Log("TRANSFER ERROR "+ex);
-   } finally { transferring=false; CameraSdk.SetThreadExecutionState(0x80000000); Publish(); }
+   } finally { transferring=false; TouchActivity(); CameraSdk.SetThreadExecutionState(0x80000000); ApplyIdleOutput(); Publish(); }
    if(TransferFinished!=null) TransferFinished(success,result);
   }); }
   void BeginClip() {
    MonitorTemperature(); EnsureNotCooling();
-   if(CameraSdk.ReadNumber(camera,0x500)!=3) { CameraSdk.WriteNumber(camera,0x500,3); CameraSdk.Pump(700); }
+   if((CameraSdk.ReadNumber(camera,0x500)&3u)!=3u) { CameraSdk.WriteNumber(camera,0x500,3); CameraSdk.Pump(700); }
    CameraSdk.WriteNumber(camera,0x510,4); ownRecording=true;
    CameraSdk.SetThreadExecutionState(0x80000001);
    CameraSdk.Pump(500);
    if(CameraSdk.Fatal) throw new Exception(CameraSdk.LastError);
    if(CameraSdk.ReadNumber(camera,0x510)!=4) throw new Exception("Recording did not start. Check the card and camera state.");
-   clip.Restart(); clipStarted=DateTime.UtcNow;
+   stopTracker.Arm(); clip.Restart(); clipStarted=DateTime.UtcNow;
    Log("RECORD START, restart count "+restarts);
   }
-  void StopCore() {
+  void StopCore(RecordingStopReason reason=RecordingStopReason.Manual) {
    if(ownRecording && opened) {
     if(CameraSdk.ReadNumber(camera,0x510)==4) CameraSdk.WriteNumber(camera,0x510,0);
-    CameraSdk.Pump(1500); SaveTake();
+    CameraSdk.Pump(1500); SaveTake(); NotifyRecordingStop(reason);
    }
    ownRecording=false; clip.Stop(); total.Stop(); CameraSdk.SetThreadExecutionState(0x80000000);
+   TouchActivity(); ApplyIdleOutput();
    message="Clip saved. Ready to record"; Log("STOP");
   }
   double WindowsCapacity() {
@@ -166,7 +201,7 @@ namespace RecorderStudio {
    return 0;
   }
   void ConnectCore() {
-   EnsureNotCooling(); CameraSdk.KeepAliveAllowed=true;
+   EnsureNotCooling(); CameraSdk.KeepAliveAllowed=true; powerRest=false; temperatureUnsupported=false; TouchActivity();
    if(ownRecording) return;
    CloseCore(); error=""; message="Connecting…"; Publish();
    double windowsCapacity=WindowsCapacity();
@@ -196,10 +231,10 @@ namespace RecorderStudio {
     double candidate=vi.Capacity>0?windowsCapacity/vi.Capacity:0;
     unit=(candidate==1 || candidate==512 || candidate==1024)?candidate:0;
    } finally { if(volume!=IntPtr.Zero) CameraSdk.EdsRelease(volume); }
-   CameraSdk.WriteNumber(camera,0x500,3); CameraSdk.Pump(700);
+   ApplyIdleOutput(stillRecording);
    MonitorTemperature(); EnsureNotCooling();
    Health(); healthFailures=0; message="Camera connected. Ready to record"; nextHealth=clock.ElapsedMilliseconds+5000;
-   if(recoverRecording && stillRecording) { ownRecording=true; clip.Start(); total.Start(); CameraSdk.SetThreadExecutionState(0x80000001); message="Connection restored; the existing recording is still running"; }
+   if(recoverRecording && stillRecording) { stopTracker.Arm(); ownRecording=true; clip.Start(); total.Start(); CameraSdk.SetThreadExecutionState(0x80000001); message="Connection restored; the existing recording is still running"; }
    recoverRecording=false; nextKeepAlive=clock.ElapsedMilliseconds;
    Log("CONNECTED, storage unit "+unit); Publish();
   }
@@ -226,9 +261,10 @@ namespace RecorderStudio {
    message="Saving and preparing the next clip…"; Publish(true); CameraSdk.Pump(1500);
    if(CameraSdk.Fatal) throw new Exception(CameraSdk.LastError);
    bool sizeLimit=CameraSdk.LastMovieSeen>clipStarted && CameraSdk.LastMovieSize>=4000000000;
-   SaveTake();
+   SaveTake(); NotifyRecordingStop(sizeLimit || duration>=1790?RecordingStopReason.ClipLimit:RecordingStopReason.CameraStopped);
    if(!sizeLimit && duration<1790) {
     ownRecording=false; clip.Stop(); total.Stop(); CameraSdk.SetThreadExecutionState(0x80000000);
+    TouchActivity(); ApplyIdleOutput();
     message="Recording stopped on the camera"; Log("EARLY STOP; no restart"); Publish(); OfferTransfer(); return;
    }
    Health(); if(unit==0 || freeBytes<256*1024*1024) throw new Exception("The card does not have enough space for another clip.");
@@ -271,14 +307,15 @@ namespace RecorderStudio {
   }
   void Publish(bool restarting=false) {
    if(Status==null) return;
-   string msg=thermal.CoolingLock?CoolingMessage:message;
-   if(preview && previewFailures>50 && !ownRecording) msg="Live view is not ready. Check the camera's movie mode";
-   Status(new CameraStatus {Connected=opened, Recording=ownRecording, Preview=preview, CanStart=!thermal.CoolingLock && opened && !ownRecording && !transferring && !focusing && unit>0,
+   string msg=thermal.CoolingLock?CoolingMessage:powerRest?RestMessage:message;
+   if(EffectivePreview && previewFailures>50 && !ownRecording) msg="Live view is not ready. Check the camera's movie mode";
+   Status(new CameraStatus {Connected=opened, Recording=ownRecording, Preview=EffectivePreview,PreviewSuspended=preview && !EffectivePreview, CanStart=!thermal.CoolingLock && !ownRecording && !transferring && !focusing && (powerRest || (opened && unit>0)),
     Message=msg,Battery=battery,Card=card,LastFile=lastFile,Error=error,Restarts=restarts,PreviewFrames=frames,
-    ClipSeconds=clip.Elapsed.TotalSeconds,TotalSeconds=total.Elapsed.TotalSeconds,Restarting=restarting,PreviewStale=preview && clock.ElapsedMilliseconds-lastFrameAt>3500,
-    Transferring=transferring,TransferProgress=transferProgress,PendingTransfers=pending.Count,BatteryLevel=batteryLevel,Focusing=focusing,Temperature=thermal.Summary,TemperatureAvailable=thermal.Available,CoolingLock=thermal.CoolingLock});
+    ClipSeconds=clip.Elapsed.TotalSeconds,TotalSeconds=total.Elapsed.TotalSeconds,Restarting=restarting,PreviewStale=EffectivePreview && clock.ElapsedMilliseconds-lastFrameAt>3500,
+    Transferring=transferring,TransferProgress=transferProgress,PendingTransfers=pending.Count,BatteryLevel=batteryLevel,Focusing=focusing,Temperature=powerRest?"Paused while resting":thermal.Summary,TemperatureAvailable=!powerRest && thermal.Available,CoolingLock=thermal.CoolingLock,PowerRest=powerRest});
   }
   void Fail(Exception ex) {
+   NotifyRecordingStop(RecordingStopReason.ConnectionLost);
    error=ex.Message; Log("ERROR "+ex.ToString());
    recoverRecording=!thermal.CoolingLock && (recoverRecording || ownRecording);
    ownRecording=false; total.Stop(); clip.Stop(); CameraSdk.SetThreadExecutionState(0x80000000);
@@ -295,20 +332,21 @@ namespace RecorderStudio {
        if(now>=nextTemperature) { MonitorTemperature(); nextTemperature=now+2000; }
        if(thermal.CoolingLock) { Publish(); continue; }
        CheckRecording();
+       if(TryIdleRest()) { Publish(); continue; }
        if(CameraSdk.KeepAliveAllowed && (now>=nextKeepAlive || CameraSdk.ShutdownWarning)) {
         uint keep=CameraSdk.EdsSendCommand(camera,1,0);
         if(keep!=lastKeepResult) { Log("KEEPALIVE RESULT 0x"+keep.ToString("X")); lastKeepResult=keep; }
         if(CameraSdk.ShutdownWarning) Log("AUTO POWER-OFF WARNING; extend result 0x"+keep.ToString("X"));
         CameraSdk.ShutdownWarning=false; nextKeepAlive=now+15000;
        }
-       if(preview && now>=nextPreview) { PreviewFrame(); nextPreview=now+100; }
+       if(EffectivePreview && now>=nextPreview) { PreviewFrame(); nextPreview=now+100; }
        if(now>=nextHealth) {
         try { Health(); healthFailures=0; }
         catch(Exception healthError) { batteryLevel=-1; battery="Unknown"; Log("Telemetry unavailable: "+healthError.Message); if(++healthFailures>=3) throw; }
         nextHealth=now+5000;
        }
       } catch(Exception ex) { Fail(ex); }
-     } else if(!thermal.CoolingLock && AppPreferences.Current.AutoReconnect && clock.ElapsedMilliseconds>=nextReconnect) {
+     } else if(!thermal.CoolingLock && !powerRest && AppPreferences.Current.AutoReconnect && clock.ElapsedMilliseconds>=nextReconnect) {
       try { ConnectCore(); } catch(Exception ex) { Log("Reconnect: "+ex.Message); CloseCore(false); message="Waiting for the camera to turn on and connect…"; error=ex.Message; }
       nextReconnect=clock.ElapsedMilliseconds+5000;
      }
@@ -317,13 +355,44 @@ namespace RecorderStudio {
     }
    } finally { try { StopCore(); } catch {} CloseCore(); }
   }
+  const string RestMessage="Battery saver: camera connection is resting. Press Start or enable preview to reconnect.";
+  void TouchActivity() { lastUserActivity=clock.ElapsedMilliseconds; }
+  void WakeIfResting() { if(powerRest) ConnectCore(); TouchActivity(); }
+  void ApplyIdleOutput(bool survivingRecording=false) {
+   if(!opened || thermal.CoolingLock || transferring) return;
+   uint desired=CameraPowerPolicy.Output(AppPreferences.Current.SaveBatteryWhileIdle,EffectivePreview,ownRecording || survivingRecording || focusing);
+   // Never interrupt a recording started using the physical camera controls.
+   if(desired==0 && CameraSdk.ReadNumber(camera,0x510)==4) return;
+   uint current=CameraSdk.ReadNumber(camera,0x500);
+   if((current&3u)==desired) return;
+   CameraSdk.WriteNumber(camera,0x500,desired); CameraSdk.Pump(700);
+   uint actual=CameraSdk.ReadNumber(camera,0x500);
+   Log("LIVE VIEW output="+desired+" readback="+actual+" recording="+ownRecording);
+   if((actual&3u)!=desired) throw new UserActionException("The camera did not accept the requested Live View mode. Choose Reconnect.");
+  }
+  bool TryIdleRest() {
+   if(!CameraPowerPolicy.ShouldRest(AppPreferences.Current.SaveBatteryWhileIdle,ownRecording,EffectivePreview,transferring,focusing,recoverRecording,clock.ElapsedMilliseconds-lastUserActivity)) return false;
+   if(CameraSdk.ReadNumber(camera,0x510)==4) { TouchActivity(); return false; }
+   ApplyIdleOutput(); powerRest=true; CameraSdk.KeepAliveAllowed=false;
+   CloseCore(false); error=""; message=RestMessage; Log("IDLE REST; USB session released; automatic reconnect suppressed"); return true;
+  }
   const string CoolingMessage="Temperature warning: recording is locked. Turn the camera OFF and let it cool. Restart the app only after cooling.";
   void EnsureNotCooling() {
    if(thermal.CoolingLock) throw new UserActionException(CoolingMessage);
   }
   void MonitorTemperature() {
-   if(!opened || thermal.CoolingLock) return;
-   thermal.Update(ThermalProtection.Probe(delegate(uint property) { return CameraSdk.ReadNumber(camera,property); }));
+   if(!opened || thermal.CoolingLock || temperatureUnsupported) return;
+   bool allUnsupported=true;
+   thermal.Update(ThermalProtection.Probe(delegate(uint property) {
+    uint type; int size; uint result=CameraSdk.EdsGetPropertySize(camera,property,0,out type,out size);
+    if(result==0 && size==4) {
+     byte[] bytes=new byte[4];result=CameraSdk.EdsGetPropertyData(camera,property,0,4,bytes);
+     if(result==0) { allUnsupported=false; return (uint?)System.BitConverter.ToUInt32(bytes,0); }
+    }
+    if(result!=0x50 && result!=0x09) allUnsupported=false;
+    return null;
+   }));
+   temperatureUnsupported=allUnsupported && !thermal.Available;
    string state=thermal.Available?"reported "+thermal.Reading.Value:"unavailable (camera/SDK does not expose a usable temperature status)";
    if(state!=lastTemperatureLog) { Log("TEMPERATURE "+state); lastTemperatureLog=state; }
    if(!thermal.CoolingLock) return;
@@ -332,9 +401,9 @@ namespace RecorderStudio {
    if(Frame!=null) Frame(null);
    bool stopped=false;
    try {
-    StopCore();
+    StopCore(RecordingStopReason.Temperature);
     stopped=CameraSdk.ReadNumber(camera,0x510)!=4;
-   } catch(Exception ex) { Log("THERMAL STOP FAILED: "+ex.Message); }
+   } catch(Exception ex) { NotifyRecordingStop(RecordingStopReason.Temperature); Log("THERMAL STOP FAILED: "+ex.Message); }
    if(stopped) {
     // These end Live View where the camera accepts them; neither command is a power switch.
     try { CameraSdk.WriteNumber(camera,0x500,oldOutput & ~2u); } catch(Exception ex) { Log("THERMAL PREVIEW RELEASE: "+ex.Message); }
@@ -346,7 +415,7 @@ namespace RecorderStudio {
    CloseCore(false); Publish();
   }
   void CloseCore(bool restoreOutput=true) {
-   if(opened) { if(outputCaptured && restoreOutput) { try { CameraSdk.WriteNumber(camera,0x500,oldOutput); } catch {} } try { CameraSdk.EdsCloseSession(camera); } catch {} }
+   if(opened) { if(outputCaptured && restoreOutput) { try { uint restore=AppPreferences.Current.SaveBatteryWhileIdle?0u:oldOutput; if(restore!=0 || CameraSdk.ReadNumber(camera,0x510)!=4) CameraSdk.WriteNumber(camera,0x500,restore); } catch {} } try { CameraSdk.EdsCloseSession(camera); } catch {} }
    outputCaptured=false;
    opened=false;
    if(camera!=IntPtr.Zero) { CameraSdk.EdsRelease(camera); camera=IntPtr.Zero; }

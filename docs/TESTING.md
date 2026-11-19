@@ -42,3 +42,13 @@ The normal release executable contains no hidden command-line path that automati
 ## Temperature capability update (1.1.1)
 
 Both temperature-property paths were read on the physical EOS 1300D while idle and with Live View enabled; neither was supported by the installed SDK/body combination. The rebuilt engine connected successfully, reported `TemperatureAvailable=false`, and remained usable. Offline policy tests verify latched cooling behavior and unavailable telemetry; UI tests verify disabled Start/reconnect/focus/preview during a simulated warning. No camera was deliberately overheated. See [temperature details](TEMPERATURE.md).
+
+## Idle battery saving (1.1.2)
+
+Policy tests exclude recording, preview, transfer, focus and recording recovery from timed rest. UI tests verify wake and pending-transfer actions remain available. Physical tests verified real 60-second rest, no unwanted automatic reconnect, Start waking the camera and recording, preview toggles preserving recording, and Stop ending Live View. The copied disposable MOV retained 1920x1080 AVC at 30000/1001 fps and PCM audio. Originals were preserved. Battery-runtime savings and another full 4 GB restart run were not measured in this test. See [power saving](POWER-SAVING.md).
+
+## Stop sounds and additional power savings (1.2.0)
+
+Offline tests validate the two/three-note PCM patterns, short durations, quiet amplitude, mute and exactly-once stop tracking. Physical tests verified notifications for manual stop, a camera-side stop and simulated SDK/session loss. A short real recording with the engine's elapsed-time threshold advanced for testing exercised the ClipLimit notification, automatic restart and the following manual-stop notification. This was not another full 4 GB-boundary test.
+
+Minimizing paused frame downloads; idle Live View ended, recording continued while minimized, and restoring resumed frames. Advancing the idle timer while minimized exercised rest and restore-to-preview. A cancelled transfer of a newly created disposable clip had native Live View output 0, resumed preview afterward and retained the original on the card. These tests do not measure watts or battery runtime. No personal footage, diagnostic executables or QA clips are included in the source/release.

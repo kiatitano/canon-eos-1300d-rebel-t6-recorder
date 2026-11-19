@@ -20,7 +20,10 @@ public static class ThermalUiTests {
    foreach(string name in new[]{"StartButton","ReconnectButton","FaceFocusButton"})if(((Button)window.FindName(name)).IsEnabled)throw new Exception(name+" must be disabled");
    if(((CheckBox)window.FindName("PreviewToggle")).IsEnabled)throw new Exception("Preview must be disabled");
    if(((TextBlock)window.FindName("TemperatureAlarm")).Visibility!=Visibility.Visible)throw new Exception("Persistent alarm required");
-   Console.WriteLine("PASS cooling UI blocks Start, reconnect, focus and preview and shows a persistent warning; no camera accessed");return 0;
+   typeof(StudioController).GetMethod("Render",flags).Invoke(controller,new object[]{new CameraStatus {PowerRest=true,CanStart=true,PendingTransfers=1}});
+   if(!((Button)window.FindName("StartButton")).IsEnabled || !((CheckBox)window.FindName("PreviewToggle")).IsEnabled)throw new Exception("Resting camera must remain wakeable");
+   if(!((Button)window.FindName("TransferButton")).IsEnabled)throw new Exception("Pending takes must be accessible after resting");
+   Console.WriteLine("PASS cooling UI blocks Start, reconnect, focus and preview and shows a persistent warning; resting camera permits wake and pending-transfer actions; no camera accessed");return 0;
   } catch(Exception ex){Console.Error.WriteLine(ex);return 1;}
   finally {if(engine!=null)engine.Dispose();AppPreferences.Current.AutoReconnect=oldReconnect;AppPreferences.Current.AlertVolume=oldVolume;}
  }

@@ -33,9 +33,9 @@ Copy-Item -LiteralPath (Join-Path $root 'src\app.config') -Destination (Join-Pat
 foreach ($name in @('README.md','LICENSE','NOTICE.md')) { if (Test-Path -LiteralPath (Join-Path $root $name)) { Copy-Item -LiteralPath (Join-Path $root $name) -Destination $output } }
 Write-Output (Join-Path $output 'EOS1300DRecorder.exe')
 if ($Package) {
-    $archive = Join-Path $root 'EOS1300DRecorder-1.1.1-win-x86.zip'
+    $archive = Join-Path $root 'EOS1300DRecorder-1.2.0-win-x86.zip'
     if (Test-Path -LiteralPath $archive) { Remove-Item -LiteralPath $archive }
-    Compress-Archive -Path (Join-Path $output 'EOS1300DRecorder.exe'),(Join-Path $output 'EOS1300DRecorder.exe.config'),(Join-Path $root 'README.md'),(Join-Path $root 'LICENSE'),(Join-Path $root 'NOTICE.md') -DestinationPath $archive
+    Compress-Archive -Path (Join-Path $output 'EOS1300DRecorder.exe'),(Join-Path $output 'EOS1300DRecorder.exe.config'),(Join-Path $root 'README.md'),(Join-Path $root 'LICENSE'),(Join-Path $root 'NOTICE.md'),(Join-Path $root 'docs'),(Join-Path $root 'assets') -DestinationPath $archive
     Get-FileHash -LiteralPath $archive -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLowerInvariant())  $([IO.Path]::GetFileName($_.Path))" } | Set-Content -LiteralPath (Join-Path $root 'SHA256SUMS.txt') -Encoding ASCII
     Write-Output $archive
 }

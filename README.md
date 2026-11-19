@@ -30,10 +30,13 @@ This app watches recordings that it starts. When it verifies a completed clip at
 - **Picture Style details:** contrast, sharpness, saturation and color tone; monochrome filter/toning controls are exposed in the monochrome style. Availability depends on camera state.
 - **Coarse battery monitoring:** a visible approximate level, low/critical banners and an original repeated-beep alert. Normal alerts use nine beeps; critical alerts use fifteen. Includes volume adjustment, mute, early warning and a sound test.
 - **Temperature warning capability:** probes the camera/SDK for warning status. When a warning is available and reported, it attempts to stop/save recording, disables preview/restart/reconnect and latches a cooling lock. The tested EOS 1300D/SDK returned unsupported telemetry; the app clearly displays **Unavailable**, not a healthy temperature. Full power-off requires the physical OFF switch. See [temperature limits](docs/TEMPERATURE.md).
+- **Short stop sounds:** quiet two-note cues for manual stops/clip limits and a distinct three-note cue for unexpected stops or lost recording monitoring. Independent volume, mute and test controls; also works while minimized. See [stop-sound behavior](docs/STOP-SOUNDS.md).
+- **Idle battery saver:** ends camera Live View when recording and preview are off, then releases the USB session after 60 idle seconds. Start or preview reconnects. Active recording is never idled; recording and preview quality remain unchanged. See [battery behavior](docs/POWER-SAVING.md).
 - **Keepalive and recovery:** sends the SDK keepalive command and retries connection after a camera disconnect, when enabled. A battery replacement does not silently begin a new recording.
 - **Verified file movement:** asks before transfer, copies each completed movie twice, compares size and SHA-256, verifies the finalized local file, and only then removes that source from the card.
 - **Transfer cancellation and progress:** completed transfers stay on the computer; unverified originals stay on the camera card.
 - **English and Persian:** live language switching, appropriate text direction, localized labels/dialog content and persistent preferences.
+- **Unseen preview and transfer savings:** pauses preview requests while minimized, resumes the same preview quality on restore, and ends Live View during original-file transfers when battery saving is enabled. Active recording keeps its required movie mode.
 - **Local operation:** no accounts, telemetry or automatic media uploads. Preferences and logs remain on your computer.
 
 ## Important limits

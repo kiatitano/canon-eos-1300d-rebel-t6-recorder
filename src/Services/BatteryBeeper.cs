@@ -1,12 +1,9 @@
-using System;
+﻿using System;
 using System.IO;
-using System.Media;
 using System.Text;
-using System.Threading;
 namespace RecorderStudio {
  public static class BatteryBeeper {
-  static int playing;
-  public static event Action<string> PlaybackError;
+  public static event Action<string> PlaybackError {add {AudioOutput.PlaybackError+=value;} remove {AudioOutput.PlaybackError-=value;}}
   public static byte[] CreateWave(bool critical,double volume) {
    const int rate=44100; int groups=critical?5:3;
    double tone=critical?0.16:0.18,gap=critical?0.065:0.09,groupGap=0.25;
@@ -31,14 +28,6 @@ namespace RecorderStudio {
     writer.Flush(); return stream.ToArray();
    }
   }
-  public static bool Play(bool critical,double volume) {
-   if(Interlocked.CompareExchange(ref playing,1,0)!=0) return false;
-   ThreadPool.QueueUserWorkItem(delegate {
-    try { using(var stream=new MemoryStream(CreateWave(critical,volume))) using(var player=new SoundPlayer(stream)) { player.Load(); player.PlaySync(); } }
-    catch(Exception ex) { if(PlaybackError!=null) PlaybackError(ex.Message); }
-    finally { Interlocked.Exchange(ref playing,0); }
-   });
-   return true;
-  }
+  public static bool Play(bool critical,double volume) {return AudioOutput.Play(CreateWave(critical,volume),false);}
  }
 }

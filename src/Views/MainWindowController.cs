@@ -43,6 +43,9 @@ namespace RecorderStudio {
    engine.SettingsChanged+=delegate(System.Collections.Generic.List<CameraSetting> settings) { window.Dispatcher.BeginInvoke(new Action(delegate { BuildSettingRows(settings); })); };
    using(var icon=Assembly.GetExecutingAssembly().GetManifestResourceStream("App.ico")) { if(icon!=null) window.Icon=BitmapFrame.Create(icon); }
    window.SourceInitialized+=delegate { try { int dark=1; DwmSetWindowAttribute(new WindowInteropHelper(window).Handle,20,ref dark,4); } catch {} };
+   engine.RecordingStopped+=delegate(RecordingStopReason reason) {
+    if(AppPreferences.Current.StopSounds) RecordingChime.Play(RecordingStopTracker.IsUnexpected(reason),AppPreferences.Current.StopSoundVolume);
+   };
    engine.Status+=delegate(CameraStatus status) { window.Dispatcher.BeginInvoke(new Action(delegate { if(!closing) Render(status); })); };
    engine.Frame+=delegate(byte[] bytes) {
     if(framePending || closing) return; framePending=true;
@@ -87,6 +90,7 @@ namespace RecorderStudio {
     if(Keyboard.Modifiers==ModifierKeys.Control && e.Key==Key.S) { engine.Stop(); e.Handled=true; }
    };
    window.SizeChanged+=delegate { Adapt(); };
+   window.StateChanged+=delegate {engine.SetWindowMinimized(window.WindowState==WindowState.Minimized);};
    window.Loaded+=delegate { engine.Connect(); Adapt(); Get<CheckBox>("MirrorToggle").IsChecked=AppPreferences.Current.MirrorPreview; if(AppPreferences.Current.PreviewOnStart) Get<CheckBox>("PreviewToggle").IsChecked=true; };
    window.Closing+=delegate(object sender,System.ComponentModel.CancelEventArgs e) {
     if(allowClose) return;
@@ -128,7 +132,7 @@ namespace RecorderStudio {
    Text("TemperatureText",status.Temperature);
    Get<TextBlock>("TemperatureText").Foreground=status.CoolingLock?Brushes.Salmon:Brushes.LightGray;
    var hint=Get<TextBlock>("TemperatureHint");
-   UiText.SetText(hint,status.CoolingLock?"Recording and reconnect are locked. Full power-off requires the camera's physical OFF switch.":status.TemperatureAvailable?"Camera-reported warning status, not a temperature in degrees.":"USB temperature monitoring is not available. Watch the camera's temperature warning icon.");
+   UiText.SetText(hint,status.CoolingLock?"Recording and reconnect are locked. Full power-off requires the camera's physical OFF switch.":status.PowerRest?"Battery and temperature monitoring resume when you wake the camera.":status.TemperatureAvailable?"Camera-reported warning status, not a temperature in degrees.":"USB temperature monitoring is not available. Watch the camera's temperature warning icon.");
    var alarm=Get<TextBlock>("TemperatureAlarm");alarm.Visibility=status.CoolingLock?Visibility.Visible:Visibility.Collapsed;
    UiText.SetText(alarm,"Temperature warning! Turn the camera OFF and let it cool.");
    if(status.CoolingLock && alarmClock.ElapsedMilliseconds-lastThermalAlarmAt>=30000) {
@@ -145,15 +149,16 @@ namespace RecorderStudio {
    if(!status.Transferring && !string.IsNullOrEmpty(status.Error)) transferRequested=false;
    Get<Button>("StartButton").IsEnabled=status.CanStart && !transferRequested;
    Get<Button>("StopButton").IsEnabled=status.Recording;
-   Get<Button>("FaceFocusButton").IsEnabled=!status.CoolingLock && status.Connected && !status.Recording && !status.Transferring && !status.Focusing;
+   Get<Button>("FaceFocusButton").IsEnabled=!status.CoolingLock && (status.Connected || status.PowerRest) && !status.Recording && !status.Transferring && !status.Focusing;
+   UiText.SetContent(Get<Button>("ReconnectButton"),status.PowerRest?"Wake camera":"↻   Reconnect");
    Get<Button>("ReconnectButton").IsEnabled=!status.CoolingLock && !status.Recording && !status.Transferring && !transferRequested;
-   Get<Button>("TransferButton").IsEnabled=status.Transferring || (status.Connected && !status.Recording && status.PendingTransfers>0);
+   Get<Button>("TransferButton").IsEnabled=status.Transferring || ((status.Connected || status.PowerRest) && !status.Recording && status.PendingTransfers>0);
    UiText.SetContent(Get<Button>("TransferButton"),status.Transferring?"Cancel transfer":"Transfer files ("+status.PendingTransfers+")");
    Get<System.Windows.Controls.ProgressBar>("TransferProgressBar").Visibility=status.Transferring?Visibility.Visible:Visibility.Collapsed;
    Get<System.Windows.Controls.ProgressBar>("TransferProgressBar").Value=status.TransferProgress*100;
    Get<CheckBox>("PreviewToggle").IsEnabled=!status.CoolingLock && !status.Transferring;
    Text("StatusText",status.Message); Text("ErrorText",string.IsNullOrEmpty(status.Error)?audioError:status.Error);
-   Text("ConnectionLabel",status.Connected?"USB connected · Battery "+status.Battery:"Camera disconnected");
+   Text("ConnectionLabel",status.PowerRest?"Camera resting · battery monitoring paused":status.Connected?"USB connected · Battery "+status.Battery:"Camera disconnected");
    Get<System.Windows.Shapes.Ellipse>("ConnectionDot").Fill=new SolidColorBrush((Color)ColorConverter.ConvertFromString(status.Connected?"#80C7A3":"#B6BAC2"));
    Get<System.Windows.Shapes.Ellipse>("RecordDot").Fill=new SolidColorBrush((Color)ColorConverter.ConvertFromString(status.Recording?"#EB6258":"#B6BAC2"));
    Text("RecordLabel",status.Restarting?"SAVING / RESTART":status.Recording?"● REC":"STANDBY");
@@ -165,6 +170,13 @@ namespace RecorderStudio {
     Get<Image>("PreviewImage").Source=null; Get<StackPanel>("EmptyPreview").Visibility=Visibility.Visible;
     Text("EmptyTitle","Temperature warning — camera cooling required");
     Text("EmptySubtitle","Turn the camera OFF. Let it cool before restarting the app."); Text("PreviewLabel","COOLING LOCK");
+   } else if(status.PowerRest) {
+    Get<Image>("PreviewImage").Source=null; Get<StackPanel>("EmptyPreview").Visibility=Visibility.Visible;
+    Text("EmptyTitle","Camera is resting to save battery");
+    Text("EmptySubtitle","Press Start or enable live preview to reconnect"); Text("PreviewLabel","BATTERY SAVER");
+   } else if(status.PreviewSuspended) {
+    Get<Image>("PreviewImage").Source=null; Get<StackPanel>("EmptyPreview").Visibility=Visibility.Visible;
+    Text("EmptyTitle","Preview paused while minimized"); Text("EmptySubtitle","Restore the window to resume full-quality preview"); Text("PreviewLabel","PREVIEW PAUSED");
    } else if(status.Transferring) {
     Get<Image>("PreviewImage").Source=null; Get<StackPanel>("EmptyPreview").Visibility=Visibility.Visible;
     Text("EmptyTitle","Transferring original files"); Text("EmptySubtitle",Math.Round(status.TransferProgress*100)+"% — "+status.Message); Text("PreviewLabel","VERIFYING ORIGINAL FILES");
